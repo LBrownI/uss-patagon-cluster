@@ -2,6 +2,12 @@ GITHUB: https://github.com/LBrownI/uss-patagon-cluster
 
 RASPBERRY PI 4 CLUSTER: https://www.raspberrypi.com/tutorials/cluster-raspberry-pi-tutorial/
 
+MPI: https://glmdev.medium.com/building-a-raspberry-pi-cluster-f5f2446702e8
+
+3D MODEL:https://www.printables.com/model/182055-raspberry-pi-4-cluster-case
+
+BETTER 3D MODEL: https://www.thingiverse.com/thing:7008176
+
 
 
 
