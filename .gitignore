@@ -192,3 +192,42 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+
+# Archivos de compilación
+*.o
+*.obj
+*.exe
+*.out
+*.log
+
+# Archivos intermedios y temporales
+*.tmp
+*.temp
+*.bak
+*~
+
+# Archivos generados por editores
+*.swp
+*.swo
+*.swn
+*.sublime-workspace
+*.sublime-project
+.vscode/
+.idea/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Metadatos de archivos en Windows
+*.Zone.Identifier
+
+# Archivos de CMake o similares
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+build/
