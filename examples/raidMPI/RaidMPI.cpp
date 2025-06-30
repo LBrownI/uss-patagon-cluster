@@ -14,17 +14,10 @@ void xorBlocks(vector<int> &result, const vector<int> &a, const vector<int> &b) 
 
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
-
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    if (size != 4) {
-        if (rank == 0)
-            cout << "Este programa requiere exactamente 4 procesos (3 datos + 1 paridad)." << endl;
-        MPI_Finalize();
-        return 0;
-    }
 
     vector<int> data(BLOCK_SIZE);
 
@@ -34,6 +27,9 @@ int main(int argc, char** argv) {
         vector<int> d2 = {50, 60, 70, 80};
         vector<int> d3 = {90,100,110,120};
         vector<int> parity(BLOCK_SIZE);
+
+        char hostname[256]
+        gethostname(hostname,sizeof(hostname))
 
         // Calcular paridad: P = d1 ^ d2 ^ d3
         vector<int> temp(BLOCK_SIZE);
@@ -50,7 +46,7 @@ int main(int argc, char** argv) {
     // Recibir datos en los nodos
     if (rank == 1 || rank == 2 || rank == 3) {
         MPI_Recv(data.data(), BLOCK_SIZE, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        cout << "Nodo " << rank << " recibió datos: ";
+        cout << "Nodo " << hostname << " recibió datos: ";
         for (int val : data) cout << val << " ";
         cout << endl;
     }
