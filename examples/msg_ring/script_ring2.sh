@@ -1,6 +1,6 @@
-scp main.cpp mpi@node02:~/uss-patagon-cluster/examples/msg_ring
-scp main.cpp mpi@node03:~/uss-patagon-cluster/examples/msg_ring
-scp main.cpp mpi@node04:~/uss-patagon-cluster/examples/msg_ring
+scp ring2.cpp mpi@node02:~/uss-patagon-cluster/examples/msg_ring
+scp ring2.cpp mpi@node03:~/uss-patagon-cluster/examples/msg_ring
+scp ring2.cpp mpi@node04:~/uss-patagon-cluster/examples/msg_ring
 
 mpic++ main.cpp -o main 
 echo "node01 ok"
