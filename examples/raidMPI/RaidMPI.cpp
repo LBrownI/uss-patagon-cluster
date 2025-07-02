@@ -57,8 +57,15 @@ int main(int argc, char** argv) {
         cout << "Nodo " << hostname << " (rank " << rank << ") recibió datos: ";
         for (int val : data) cout << val << " ";
         cout << endl;
-    }
 
+        if (rank == size - 1) {
+            // Nodo de paridad reenvía la paridad al maestro
+            vector<int> parity(BLOCK_SIZE);
+            MPI_Recv(parity.data(), BLOCK_SIZE, MPI_INT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(parity.data(), BLOCK_SIZE, MPI_INT, 0, 1, MPI_COMM_WORLD);
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
     // Simular recuperación en nodo 0 si falla un nodo arbitrario (por ejemplo, rank 2)
     int failed_rank = 2;
 
@@ -85,7 +92,7 @@ int main(int argc, char** argv) {
         cout << "Datos recuperados del nodo " << failed_rank << ": ";
         for (int val : recovered) cout << val << " ";
         cout << endl;
-    } else if (rank != failed_rank) {
+    } else if (rank != failed_rank) { 
         // Enviar datos a nodo 0 para recuperación
         MPI_Send(data.data(), BLOCK_SIZE, MPI_INT, 0, 2, MPI_COMM_WORLD);
     }
