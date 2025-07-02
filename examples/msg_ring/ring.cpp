@@ -123,8 +123,8 @@ int main(int argc,char**argv){
         }
     }
 
-    /* 4. Resultados en root */
-        if(rank==0){
+        /* 4. Resultados en root */
+    if(rank==0){
         double elapsed = MPI_Wtime() - t0;
         std::cout<<"\n--- Frase reconstruida ---\n"<<assembled<<"\n";
         std::cout<<"\n--- Métricas ---\nProcesos  : "<<size
@@ -134,3 +134,8 @@ int main(int argc,char**argv){
                  <<"\nBW aprox   : "
                  << (assembled.size()/elapsed)/(1024.0*1024.0) << " MB/s\n";
     }
+
+    /* 5. Cierre de MPI y salida limpia */
+    MPI_CH(MPI_Finalize());
+    return 0;
+}
