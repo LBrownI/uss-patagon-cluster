@@ -1,140 +1,196 @@
-/******************************************************************
- * mpi_text_ring_sendrecv.cpp
+/**
+ * @file mpi_word_ring.cpp
+ * @brief Cada nodo en un anillo MPI añade una palabra secuencialmente para reconstruir una frase.
  *
- * – Round-robin de palabras sobre todos los procesos.
- * – Cada vuelta usa MPI_Sendrecv  ➜  cero posibilidades de dead-lock.
- * – El root (rank 0) va ensamblando la frase y muestra métricas.
- ******************************************************************/
+ * Compilación: mpic++ mpi_word_ring.cpp -o word_ring
+ * Ejecución  : mpirun -np <N> --hostfile <hosts> ./word_ring
+ */
+
 #include <mpi.h>
 #include <iostream>
 #include <sstream>
 #include <vector>
 #include <string>
-#include <cstring>
+#include <cstdio>
 
-#define TAG_LEN   10     // para el intercambio de longitudes
-#define TAG_DATA  20     // para el texto real
-#define MAX_WORD  256    // long máx. de palabra individual
-#define MAX_RING  4096   // buffer que viaja por el anillo
-
-inline void die_if(int e, const char* f, int l){
-    if(e!=MPI_SUCCESS){ char m[MPI_MAX_ERROR_STRING]; int n{};
-        MPI_Error_string(e,m,&n); std::fprintf(stderr,"MPI %s:%d %s\n",f,l,m);
-        MPI_Abort(MPI_COMM_WORLD,e); }
-}
-#define MPI_CH(x) die_if((x),__FILE__,__LINE__)
-
-std::vector<std::string> split(const std::string& s){
-    std::istringstream iss{s}; std::vector<std::string> v; std::string w;
-    while(iss>>w) v.push_back(w); return v;
-}
-
-int main(int argc,char**argv){
-    MPI_CH(MPI_Init(&argc,&argv));
-    int rank,size; MPI_CH(MPI_Comm_rank(MPI_COMM_WORLD,&rank));
-    MPI_CH(MPI_Comm_size(MPI_COMM_WORLD,&size));
-    if(size<2){ if(rank==0) std::cerr<<"Se requieren ≥2 procesos\n";
-                MPI_Finalize(); return 1; }
-
-    /* ---------- Distribución round-robin ---------- */
-    std::vector<std::string> mine;
-    if(rank==0){
-        std::cout<<"Ingresa la frase:\n> ";
-        std::string line; std::getline(std::cin,line);
-        auto w = split(line);
-
-        for(int r=0;r<size;++r){
-            std::ostringstream oss;
-            for(std::size_t i=r;i<w.size();i+=size){
-                if(i!=r) oss<<' ';
-                oss<<w[i];
-            }
-            std::string payload = oss.str();
-            if(r==0) mine = split(payload);
-            else{
-                int len = payload.size();
-                MPI_CH(MPI_Send(&len,1,MPI_INT,r,TAG_LEN,MPI_COMM_WORLD));
-                MPI_CH(MPI_Send(payload.data(),len,MPI_CHAR,r,TAG_DATA,MPI_COMM_WORLD));
-            }
-        }
-    }else{
+// ---------- Utilidad de chequeo de errores MPI ----------
+void check_mpi_error(int err, const char* file, int line) {
+    if (err != MPI_SUCCESS) {
+        char msg[MPI_MAX_ERROR_STRING];
         int len;
-        MPI_CH(MPI_Recv(&len,1,MPI_INT,0,TAG_LEN,MPI_COMM_WORLD,MPI_STATUS_IGNORE));
-        std::string payload(len,'\0');
-        MPI_CH(MPI_Recv(payload.data(),len,MPI_CHAR,0,TAG_DATA,MPI_COMM_WORLD,
-                        MPI_STATUS_IGNORE));
-        if(!payload.empty()) mine = split(payload);
+        MPI_Error_string(err, msg, &len);
+        std::fprintf(stderr, "MPI error at %s:%d - %s\n", file, line, msg);
+        MPI_Abort(MPI_COMM_WORLD, err);
+    }
+}
+#define MPI_CHECK(cmd) check_mpi_error(cmd, __FILE__, __LINE__)
+
+// ---------- Helpers para manejo de strings y vectores ----------
+static std::vector<std::string> split_words(const std::string& txt) {
+    std::istringstream iss(txt);
+    std::vector<std::string> words;
+    std::string w;
+    while (iss >> w) words.push_back(w);
+    return words;
+}
+
+// Serializa un vector de strings a un solo string con saltos de línea
+static std::string serialize_vector(const std::vector<std::string>& vec) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        oss << vec[i] << (i == vec.size() - 1 ? "" : "\n");
+    }
+    return oss.str();
+}
+
+// Deserializa un string a un vector de strings
+static std::vector<std::string> deserialize_string(const std::string& s) {
+    std::vector<std::string> vec;
+    if (s.empty()) return vec;
+    std::istringstream iss(s);
+    std::string word;
+    while (std::getline(iss, word)) {
+        vec.push_back(word);
+    }
+    return vec;
+}
+
+static void send_string(const std::string& s, int dest, int tag) {
+    int len = static_cast<int>(s.size());
+    MPI_CHECK(MPI_Send(&len, 1, MPI_INT, dest, tag, MPI_COMM_WORLD));
+    if (len > 0) {
+        MPI_CHECK(MPI_Send(s.c_str(), len, MPI_CHAR, dest, tag, MPI_COMM_WORLD));
+    }
+}
+
+static std::string recv_string(int src, int tag, MPI_Comm comm) {
+    MPI_Status st;
+    int len;
+    MPI_CHECK(MPI_Recv(&len, 1, MPI_INT, src, tag, comm, &st));
+    std::string buf;
+    if (len > 0) {
+        buf.resize(len);
+        MPI_CHECK(MPI_Recv(&buf[0], len, MPI_CHAR, src, tag, comm, &st));
+    }
+    return buf;
+}
+
+
+// ---------- Programa Principal ----------
+int main(int argc, char** argv) {
+    MPI_CHECK(MPI_Init(&argc, &argv));
+    int rank, size;
+    MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
+    MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &size));
+
+    char proc_name_char[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_CHECK(MPI_Get_processor_name(proc_name_char, &name_len));
+    std::string my_hostname(proc_name_char, name_len);
+
+    if (size < 1) {
+        MPI_Finalize();
+        return 1;
+    }
+    
+    std::vector<std::string> all_words;
+    int total_words = 0;
+
+    // --- 1. Root lee la frase y la transmite a todos los nodos ---
+    if (rank == 0) {
+        std::cout << "Escribe la frase:\n> ";
+        std::string line;
+        std::getline(std::cin, line);
+        all_words = split_words(line);
+        total_words = all_words.size();
     }
 
-    /* ---------- Parámetros para el anillo ---------- */
-    std::size_t local = mine.size(), total{};
-    MPI_CH(MPI_Allreduce(&local,&total,1,MPI_UNSIGNED_LONG_LONG,MPI_SUM,
-                         MPI_COMM_WORLD));
-    std::size_t insert_cycles = (total + size - 1) / size; // ceil(total/size)
-    std::size_t rounds        = insert_cycles + (size - 1);
+    // Transmitir el número total de palabras a todos
+    MPI_CHECK(MPI_Bcast(&total_words, 1, MPI_INT, 0, MPI_COMM_WORLD));
 
-
-    const int next = (rank+1)%size, prev = (rank-1+size)%size;
-    char sendbuf[MAX_RING]{0}, recvbuf[MAX_RING]{0};
-    std::size_t idx = 0;        // próxima palabra propia
-    std::string assembled;      // solo root la usa
-
-    MPI_CH(MPI_Barrier(MPI_COMM_WORLD));
-    double t0 = (rank==0)?MPI_Wtime():0.0;
-
-    /* ---------- Bucle principal ---------- */
-    for(std::size_t r=0; r<rounds; ++r){
-        std::string out = (idx < mine.size()) ? mine[idx++] : "";
-        std::strncpy(sendbuf, out.c_str(), MAX_RING-1);
-        int send_len = out.size(), recv_len = 0;
-
-        /* Paso-1: todas las longitudes en paralelo */
-        MPI_CH(MPI_Sendrecv(&send_len,1,MPI_INT,next,TAG_LEN,
-                            &recv_len,1,MPI_INT,prev,TAG_LEN,
-                            MPI_COMM_WORLD,MPI_STATUS_IGNORE));
-
-        /* Paso-2: contenido real (si lo hay) */
-        if(recv_len>MAX_RING) recv_len = MAX_RING;          // seguridad
-        MPI_CH(MPI_Sendrecv(sendbuf,send_len?send_len:1,MPI_CHAR,next,TAG_DATA, // count≥1
-                            recvbuf,recv_len?recv_len:1,MPI_CHAR,prev,TAG_DATA,
-                            MPI_COMM_WORLD,MPI_STATUS_IGNORE));
-        std::string in(recvbuf, recv_len);
-
-        if(rank!=0){
-            std::cout<<"Rank "<<rank<<" recibe <- "<<prev<<": '"<<in<<"'\n";
+    if (total_words > 0) {
+        std::string serialized_words;
+        if (rank == 0) {
+            serialized_words = serialize_vector(all_words);
         }
-
-        if(rank==0){
-            if(!assembled.empty() && !in.empty()) assembled.push_back(' ');
-            assembled += in;
-        }
-
-        if(rank!=0){
-            if(idx < mine.size()){            // añadimos nuestra palabra
-                if(!in.empty()) in.push_back(' ');
-                in += mine[idx++];
+        // Transmitir las palabras serializadas
+        send_string(serialized_words, 0, 99); // Rank 0 -> Rank 0 (para simplificar)
+        if(rank == 0) {
+            serialized_words = recv_string(0, 99, MPI_COMM_SELF);
+            for(int i = 1; i < size; ++i) {
+                send_string(serialized_words, i, 99);
             }
-            std::strncpy(sendbuf, in.c_str(), MAX_RING-1);
-            send_len = in.size();
-        }else{
-            /* El root, para la siguiente vuelta, enviará SU siguiente palabra
-               (se prepara al comienzo de la iteración)            */
+        } else {
+            serialized_words = recv_string(0, 99, MPI_COMM_WORLD);
+        }
+        all_words = deserialize_string(serialized_words);
+    }
+    
+    MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
+    double start_time = 0;
+    if(rank == 0) start_time = MPI_Wtime();
+
+    // --- 2. Anillo secuencial palabra por palabra ---
+    std::string current_phrase;
+    const int TAG_PHRASE = 201;
+
+    for (int i = 0; i < total_words; ++i) {
+        int owner_rank = i % size;
+
+        if (rank == owner_rank) {
+            // Es mi turno. Primero, recibo la frase del anterior (si no soy el primero).
+            if (i > 0) {
+                int source_rank = (i - 1) % size;
+                current_phrase = recv_string(source_rank, TAG_PHRASE, MPI_COMM_WORLD);
+            }
+
+            // Añado mi palabra
+            std::string my_word = all_words[i];
+            if (!current_phrase.empty()) {
+                current_phrase += " ";
+            }
+            current_phrase += my_word;
+
+            // Muestro el log y la envío al siguiente
+            int next_rank_in_ring = (rank + 1) % size;
+            std::cout << my_hostname << " añade '" << my_word << "' y envia '" << current_phrase << "' a node" << next_rank_in_ring << std::endl;
+            
+            // Si no es la última palabra, la paso al siguiente nodo del anillo
+            if (i < total_words - 1) {
+                int next_owner_rank = (i + 1) % size;
+                send_string(current_phrase, next_owner_rank, TAG_PHRASE);
+            }
         }
     }
 
-    MPI_CH(MPI_Barrier(MPI_COMM_WORLD));   // todos terminaron el anillo
-
-    if(rank==0){
-        double dt = MPI_Wtime() - t0;
-        std::cout<<"\n--- Frase reconstruida ---\n"<<assembled<<"\n";
-        std::cout<<"\n--- Métricas ---\nProcesos : "<<size
-                 <<"\nPalabras  : "<<total
-                 <<"\nTiempo    : "<<dt<<" s"
-                 <<"\nLatencia  : "<<dt*1000<<" ms (completo)"
-                 <<"\nBW aprox  : "<<(assembled.size()/dt)/(1024*1024)
-                 <<" MB/s\n";
+    // --- 3. Finalización y recolección de métricas ---
+    int final_owner_rank = (total_words - 1) % size;
+    if (total_words > 0 && rank == final_owner_rank) {
+         std::cout << "\nEl mensaje dio la vuelta completa, y terminó en " << my_hostname << ".\n";
+         // Si el dueño final no es el root, debe enviarle el resultado
+         if (rank != 0) {
+             send_string(current_phrase, 0, TAG_PHRASE);
+         }
     }
 
-    MPI_CH(MPI_Finalize());
+    if (rank == 0) {
+        std::string final_phrase = current_phrase;
+        if (total_words > 0 && final_owner_rank != 0) {
+             final_phrase = recv_string(final_owner_rank, TAG_PHRASE, MPI_COMM_WORLD);
+        }
+        
+        double total_time = MPI_Wtime() - start_time;
+        
+        std::cout << "\n--- Frase reconstruida ---\n" << final_phrase << "\n";
+        std::cout << "\n--- Métricas ---\n"
+                  << "Procesos       : " << size << '\n'
+                  << "Palabras       : " << total_words << '\n'
+                  << "Tamaño final   : " << final_phrase.size() << " bytes\n"
+                  << "Tiempo total   : " << total_time << " s\n"
+                  << "Latencia (total): " << total_time * 1000.0 << " ms\n"
+                  << "Ancho de banda : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
+    }
+
+    MPI_CHECK(MPI_Finalize());
     return 0;
 }
