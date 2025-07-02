@@ -1,9 +1,9 @@
 /**
- * @file mpi_word_ring.cpp
+ * @file msg_ring.cpp
  * @brief Cada nodo en un anillo MPI añade una palabra secuencialmente para reconstruir una frase.
  *
- * Compilación: mpic++ mpi_word_ring.cpp -o word_ring
- * Ejecución  : mpirun -np <N> --hostfile <hosts> ./word_ring
+ * Compilación: mpic++ msg_ring.cpp -o ring
+ * Ejecución  : mpirun -np <N> --hostfile <hosts> ./ring
  */
 
 #include <mpi.h>
@@ -34,7 +34,6 @@ static std::vector<std::string> split_words(const std::string& txt) {
     return words;
 }
 
-// Serializa un vector de strings a un solo string con saltos de línea
 static std::string serialize_vector(const std::vector<std::string>& vec) {
     std::ostringstream oss;
     for (size_t i = 0; i < vec.size(); ++i) {
@@ -43,7 +42,6 @@ static std::string serialize_vector(const std::vector<std::string>& vec) {
     return oss.str();
 }
 
-// Deserializa un string a un vector de strings
 static std::vector<std::string> deserialize_string(const std::string& s) {
     std::vector<std::string> vec;
     if (s.empty()) return vec;
@@ -109,21 +107,33 @@ int main(int argc, char** argv) {
     MPI_CHECK(MPI_Bcast(&total_words, 1, MPI_INT, 0, MPI_COMM_WORLD));
 
     if (total_words > 0) {
+        // --------- FIX STARTS HERE: Correct Broadcast Logic ---------
+        int serialized_len = 0;
         std::string serialized_words;
+
         if (rank == 0) {
             serialized_words = serialize_vector(all_words);
+            serialized_len = serialized_words.length() + 1; // +1 for null terminator
         }
-        // Transmitir las palabras serializadas
-        send_string(serialized_words, 0, 99); // Rank 0 -> Rank 0 (para simplificar)
-        if(rank == 0) {
-            serialized_words = recv_string(0, 99, MPI_COMM_SELF);
-            for(int i = 1; i < size; ++i) {
-                send_string(serialized_words, i, 99);
-            }
-        } else {
-            serialized_words = recv_string(0, 99, MPI_COMM_WORLD);
+
+        // 1. Broadcast the length of the string to all processes
+        MPI_CHECK(MPI_Bcast(&serialized_len, 1, MPI_INT, 0, MPI_COMM_WORLD));
+
+        // Create a buffer of the correct size on all processes
+        char* word_buffer = new char[serialized_len];
+
+        if (rank == 0) {
+            // Copy the string data into the buffer before broadcasting
+            snprintf(word_buffer, serialized_len, "%s", serialized_words.c_str());
         }
-        all_words = deserialize_string(serialized_words);
+
+        // 2. Broadcast the actual string data into the buffer
+        MPI_CHECK(MPI_Bcast(word_buffer, serialized_len, MPI_CHAR, 0, MPI_COMM_WORLD));
+
+        // All processes now have the data and can deserialize it
+        all_words = deserialize_string(std::string(word_buffer));
+        delete[] word_buffer; // Clean up the buffer
+        // --------- FIX ENDS HERE ---------
     }
     
     MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
@@ -138,24 +148,20 @@ int main(int argc, char** argv) {
         int owner_rank = i % size;
 
         if (rank == owner_rank) {
-            // Es mi turno. Primero, recibo la frase del anterior (si no soy el primero).
             if (i > 0) {
                 int source_rank = (i - 1) % size;
                 current_phrase = recv_string(source_rank, TAG_PHRASE, MPI_COMM_WORLD);
             }
 
-            // Añado mi palabra
             std::string my_word = all_words[i];
             if (!current_phrase.empty()) {
                 current_phrase += " ";
             }
             current_phrase += my_word;
 
-            // Muestro el log y la envío al siguiente
             int next_rank_in_ring = (rank + 1) % size;
             std::cout << my_hostname << " añade '" << my_word << "' y envia '" << current_phrase << "' a node" << next_rank_in_ring << std::endl;
             
-            // Si no es la última palabra, la paso al siguiente nodo del anillo
             if (i < total_words - 1) {
                 int next_owner_rank = (i + 1) % size;
                 send_string(current_phrase, next_owner_rank, TAG_PHRASE);
@@ -164,33 +170,32 @@ int main(int argc, char** argv) {
     }
 
     // --- 3. Finalización y recolección de métricas ---
-    int final_owner_rank = (total_words - 1) % size;
-    if (total_words > 0 && rank == final_owner_rank) {
-         std::cout << "\nEl mensaje dio la vuelta completa, y terminó en " << my_hostname << ".\n";
-         // Si el dueño final no es el root, debe enviarle el resultado
-         if (rank != 0) {
-             send_string(current_phrase, 0, TAG_PHRASE);
-         }
-    }
-
-    if (rank == 0) {
-        std::string final_phrase = current_phrase;
-        if (total_words > 0 && final_owner_rank != 0) {
-             final_phrase = recv_string(final_owner_rank, TAG_PHRASE, MPI_COMM_WORLD);
+    if (total_words > 0) {
+        int final_owner_rank = (total_words - 1) % size;
+        if (rank == final_owner_rank) {
+            std::cout << "\nEl mensaje dio la vuelta completa, y terminó en " << my_hostname << ".\n";
+            if (rank != 0) {
+                send_string(current_phrase, 0, TAG_PHRASE);
+            }
         }
-        
-        double total_time = MPI_Wtime() - start_time;
-        
-        std::cout << "\n--- Frase reconstruida ---\n" << final_phrase << "\n";
-        std::cout << "\n--- Métricas ---\n"
-                  << "Procesos       : " << size << '\n'
-                  << "Palabras       : " << total_words << '\n'
-                  << "Tamaño final   : " << final_phrase.size() << " bytes\n"
-                  << "Tiempo total   : " << total_time << " s\n"
-                  << "Latencia (total): " << total_time * 1000.0 << " ms\n"
-                  << "Ancho de banda : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
-    }
 
-    MPI_CHECK(MPI_Finalize());
-    return 0;
-}
+        if (rank == 0) {
+            std::string final_phrase = current_phrase;
+            if (final_owner_rank != 0) {
+                final_phrase = recv_string(final_owner_rank, TAG_PHRASE, MPI_COMM_WORLD);
+            }
+            
+            double total_time = MPI_Wtime() - start_time;
+            
+            std::cout << "\n--- Frase reconstruida ---\n" << final_phrase << "\n";
+            std::cout << "\n--- Métricas ---\n"
+                    << "Procesos       : " << size << '\n'
+                    << "Palabras       : " << total_words << '\n'
+                    << "Tamaño final   : " << final_phrase.size() << " bytes\n"
+                    << "Tiempo total   : " << total_time << " s\n"
+                    << "Latencia (total): " << total_time * 1000.0 << " ms\n"
+                    << "Ancho de banda : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
+        }
+    } else if (rank == 0) {
+        // Handle case with no input
+        std::cout << "\n
