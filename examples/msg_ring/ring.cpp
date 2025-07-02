@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    // --- 3. Finalización y recolección de métricas ---
+// --- 3. Finalización y recolección de métricas ---
     if (total_words > 0) {
         int final_owner_rank = (total_words - 1) % size;
         if (rank == final_owner_rank) {
@@ -198,4 +198,9 @@ int main(int argc, char** argv) {
         }
     } else if (rank == 0) {
         // Handle case with no input
-        std::cout << "\n
+        std::cout << "\nNo se ingresaron palabras.\n"; // <<< THIS IS THE CORRECTED LINE
+    }
+
+    MPI_CHECK(MPI_Finalize());
+    return 0;
+}
