@@ -124,7 +124,7 @@ int main(int argc,char**argv){
     }
 
     /* 4. Resultados en root */
-    if(rank==0){
+        if(rank==0){
         double elapsed = MPI_Wtime() - t0;
         std::cout<<"\n--- Frase reconstruida ---\n"<<assembled<<"\n";
         std::cout<<"\n--- Métricas ---\nProcesos  : "<<size
@@ -132,4 +132,5 @@ int main(int argc,char**argv){
                  <<"\nTiempo [s] : "<<elapsed
                  <<"\nLatencia   : "<<elapsed*1000<<" ms (todas las vueltas)"
                  <<"\nBW aprox   : "
-                 << (assembled.size()/elapsed)/(1024.0
+                 << (assembled.size()/elapsed)/(1024.0*1024.0) << " MB/s\n";
+    }
