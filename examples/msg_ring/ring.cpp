@@ -81,10 +81,26 @@ int main(int argc, char** argv) {
     MPI_CHECK(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
     MPI_CHECK(MPI_Comm_size(MPI_COMM_WORLD, &size));
 
+    // --- 1. OBTENER LOS NOMBRES DE TODOS LOS NODOS ---
     char proc_name_char[MPI_MAX_PROCESSOR_NAME];
     int name_len;
     MPI_CHECK(MPI_Get_processor_name(proc_name_char, &name_len));
-    std::string my_hostname(proc_name_char, name_len);
+    
+    // Buffer para recibir todos los nombres de host
+    char all_names_buffer[size * MPI_MAX_PROCESSOR_NAME];
+
+    // Cada proceso envía su nombre y recibe la lista completa de nombres
+    MPI_CHECK(MPI_Allgather(proc_name_char, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
+                            all_names_buffer, MPI_MAX_PROCESSOR_NAME, MPI_CHAR,
+                            MPI_COMM_WORLD));
+
+    // Convertir el buffer en una lista de strings para fácil acceso
+    std::vector<std::string> all_hostnames;
+    for (int i = 0; i < size; ++i) {
+        all_hostnames.push_back(std::string(&all_names_buffer[i * MPI_MAX_PROCESSOR_NAME]));
+    }
+    std::string my_hostname = all_hostnames[rank];
+    // --- FIN DEL CAMBIO 1 ---
 
     if (size < 1) {
         MPI_Finalize();
@@ -94,7 +110,6 @@ int main(int argc, char** argv) {
     std::vector<std::string> all_words;
     int total_words = 0;
 
-    // --- 1. Root lee la frase y la transmite a todos los nodos ---
     if (rank == 0) {
         std::cout << "Escribe la frase:\n> ";
         std::string line;
@@ -103,50 +118,34 @@ int main(int argc, char** argv) {
         total_words = all_words.size();
     }
 
-    // Transmitir el número total de palabras a todos
     MPI_CHECK(MPI_Bcast(&total_words, 1, MPI_INT, 0, MPI_COMM_WORLD));
 
     if (total_words > 0) {
-        // --------- FIX STARTS HERE: Correct Broadcast Logic ---------
         int serialized_len = 0;
         std::string serialized_words;
-
         if (rank == 0) {
             serialized_words = serialize_vector(all_words);
-            serialized_len = serialized_words.length() + 1; // +1 for null terminator
+            serialized_len = serialized_words.length() + 1;
         }
-
-        // 1. Broadcast the length of the string to all processes
         MPI_CHECK(MPI_Bcast(&serialized_len, 1, MPI_INT, 0, MPI_COMM_WORLD));
-
-        // Create a buffer of the correct size on all processes
         char* word_buffer = new char[serialized_len];
-
         if (rank == 0) {
-            // Copy the string data into the buffer before broadcasting
             snprintf(word_buffer, serialized_len, "%s", serialized_words.c_str());
         }
-
-        // 2. Broadcast the actual string data into the buffer
         MPI_CHECK(MPI_Bcast(word_buffer, serialized_len, MPI_CHAR, 0, MPI_COMM_WORLD));
-
-        // All processes now have the data and can deserialize it
         all_words = deserialize_string(std::string(word_buffer));
-        delete[] word_buffer; // Clean up the buffer
-        // --------- FIX ENDS HERE ---------
+        delete[] word_buffer;
     }
     
     MPI_CHECK(MPI_Barrier(MPI_COMM_WORLD));
     double start_time = 0;
     if(rank == 0) start_time = MPI_Wtime();
 
-    // --- 2. Anillo secuencial palabra por palabra ---
     std::string current_phrase;
     const int TAG_PHRASE = 201;
 
     for (int i = 0; i < total_words; ++i) {
         int owner_rank = i % size;
-
         if (rank == owner_rank) {
             if (i > 0) {
                 int source_rank = (i - 1) % size;
@@ -159,17 +158,20 @@ int main(int argc, char** argv) {
             }
             current_phrase += my_word;
 
-            int next_rank_in_ring = (rank + 1) % size;
-            std::cout << my_hostname << " añade '" << my_word << "' y envia '" << current_phrase << "' a node" << next_rank_in_ring << std::endl;
-            
+            // --- 2. CORRECCIÓN DEL MENSAJE EN PANTALLA ---
             if (i < total_words - 1) {
                 int next_owner_rank = (i + 1) % size;
+                // Usar la lista de hostnames para mostrar el nombre del destinatario correcto
+                std::cout << my_hostname << " añade '" << my_word << "' y envia '" << current_phrase << "' a " << all_hostnames[next_owner_rank] << std::endl;
                 send_string(current_phrase, next_owner_rank, TAG_PHRASE);
+            } else {
+                // Para la última palabra, mostrar que se envía de vuelta al nodo raíz (rank 0)
+                std::cout << my_hostname << " añade '" << my_word << "' y envia '" << current_phrase << "' a " << all_hostnames[0] << std::endl;
             }
+            // --- FIN DEL CAMBIO 2 ---
         }
     }
 
-// --- 3. Finalización y recolección de métricas ---
     if (total_words > 0) {
         int final_owner_rank = (total_words - 1) % size;
         if (rank == final_owner_rank) {
@@ -197,8 +199,7 @@ int main(int argc, char** argv) {
                     << "Ancho de banda : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
         }
     } else if (rank == 0) {
-        // Handle case with no input
-        std::cout << "\nNo se ingresaron palabras.\n"; // <<< THIS IS THE CORRECTED LINE
+        std::cout << "\nNo se ingresaron palabras.\n";
     }
 
     MPI_CHECK(MPI_Finalize());
