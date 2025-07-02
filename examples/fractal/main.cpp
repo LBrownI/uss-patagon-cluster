@@ -8,8 +8,8 @@
 using namespace std;
 using namespace cv;
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
+const int WIDTH = 1080;
+const int HEIGHT = 1920;
 const int SCALE = 150;
 const int TOTAL_ITER = 1000000;
 
@@ -64,9 +64,14 @@ int main(int argc, char** argv) {
 
     int local_iter = TOTAL_ITER / size;
 
+    double start_time = MPI_Wtime();
+
     // Imagen local de cada nodo
     Mat local_image = Mat::zeros(HEIGHT, WIDTH, CV_8UC1);
     generateFern(local_image, local_iter, 1234 + rank);
+
+    double end_time = MPI_Wtime();
+    cout << "Rank " << rank << " completed in " << (end_time - start_time) << " seconds." << endl;
 
     // Imagen final solo en el proceso 0
     Mat global_image;
@@ -75,17 +80,16 @@ int main(int argc, char** argv) {
     }
 
     // Reunir las imágenes usando reducción por máximo (para binario)
-    MPI_Reduce(local_image.data, 
+    MPI_Reduce(local_image.data,
                 (rank == 0 ? global_image.data : nullptr),
                 WIDTH * HEIGHT, MPI_UNSIGNED_CHAR,
                 MPI_MAX, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
-        imshow("Fern", global_image);
-        waitKey();
+	    rotate(global_image, global_image, ROTATE_90_COUNTERCLOCKWISE);
+        imwrite("Fern.png", global_image);
     }
 
     MPI_Finalize();
     return 0;
 }
-
