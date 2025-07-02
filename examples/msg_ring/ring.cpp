@@ -70,7 +70,9 @@ int main(int argc,char**argv){
     std::size_t local = mine.size(), total{};
     MPI_CH(MPI_Allreduce(&local,&total,1,MPI_UNSIGNED_LONG_LONG,MPI_SUM,
                          MPI_COMM_WORLD));
-    std::size_t rounds = (total + size - 1) / size;   // máx nº de palabras por nodo
+    std::size_t insert_cycles = (total + size - 1) / size; // ceil(total/size)
+    std::size_t rounds        = insert_cycles + (size - 1);
+
 
     const int next = (rank+1)%size, prev = (rank-1+size)%size;
     char sendbuf[MAX_RING]{0}, recvbuf[MAX_RING]{0};
