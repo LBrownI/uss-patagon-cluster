@@ -16,8 +16,8 @@ Este proyecto crea un **clúster funcional con Raspberry Pi 4**, donde:
 
 ## 🚀 Tecnologías Usadas
 
-- **Lenguaje:** C++ con MPI (MPICH u OpenMPI)  
-- **Hardware:** Raspberry Pi 4 (4+ GB RAM) x4  
+- **Lenguaje:** C++ con MPI
+- **Hardware:** Raspberry Pi 4 x4  
 - **Sistema Operativo:** Raspberry Pi OS Lite (headless)  
 - **Red:** Ethernet + switch  
 - **Automatización:** SSH, `rsync`, `tmux`, `bash scripts`  
