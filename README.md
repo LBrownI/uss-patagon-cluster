@@ -112,7 +112,7 @@ This will:
     </td>
     <td align="center">
       <a href="https://github.com/ninaaaa3">
-        <img src="https://github.com/Nach0t.png" width="100px;" alt="ninaaaa3"/><br />
+        <img src="https://github.com/ninaaaa3.png" width="100px;" alt="ninaaaa3"/><br />
         <sub><b>@ninaaaa3</b></sub>
       </a>
     </td>
