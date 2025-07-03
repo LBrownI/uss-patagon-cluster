@@ -1,3 +1,15 @@
+/**
+ * @file conway_mpi.cpp
+ * @brief Parallel Conway's Game of Life using MPI
+ *
+ * This program runs Conway's Game of Life in parallel using MPI. Each MPI process
+ * handles a block of rows, with ghost rows exchanged between neighbors.
+ * The game updates and displays the full grid over a number of generations.
+ *
+ * Usage:
+ *   mpirun -np <processes> ./conway_mpi -c <cols> -f <rows> -g <generations>
+ */
+
 #include <mpi.h>
 #include <iostream>
 #include <vector>
@@ -6,20 +18,35 @@
 #include <unistd.h>
 #include <thread>
 
+/// Type alias for the grid
 using Grid = std::vector<std::vector<int>>;
 
+// ANSI color codes
 const std::string PURPLE = "\033[35m";
 const std::string WHITE = "\033[37m";
 const std::string RESET = "\033[0m";
 
-// Inicializa aleatoriamente la subgrilla local
+/**
+ * @brief Initializes the local subgrid with random 0s and 1s
+ * @param grid The grid to initialize
+ * @param local_rows Number of active local rows
+ * @param cols Number of columns
+ */
 void initGrid(Grid &grid, int local_rows, int cols) {
     for (int i = 1; i <= local_rows; ++i)
         for (int j = 0; j < cols; ++j)
             grid[i][j] = rand() % 2;
 }
 
-// Cuenta vecinos vivos (considerando filas fantasmas)
+/**
+ * @brief Counts the number of alive neighbors for a cell
+ * @param grid The full grid with ghost rows
+ * @param x Row index
+ * @param y Column index
+ * @param rows Local rows
+ * @param cols Columns
+ * @return Number of alive neighbors
+ */
 int countAliveNeighbors(const Grid &grid, int x, int y, int rows, int cols) {
     int count = 0;
     for (int dx = -1; dx <= 1; ++dx)
@@ -33,7 +60,13 @@ int countAliveNeighbors(const Grid &grid, int x, int y, int rows, int cols) {
     return count;
 }
 
-// Aplica las reglas de Conway
+/**
+ * @brief Applies Conway's rules to update the grid
+ * @param current The current grid
+ * @param next The updated grid
+ * @param local_rows Number of local rows
+ * @param cols Number of columns
+ */
 void updateGrid(const Grid &current, Grid &next, int local_rows, int cols) {
     for (int i = 1; i <= local_rows; ++i)
         for (int j = 0; j < cols; ++j) {
@@ -44,7 +77,15 @@ void updateGrid(const Grid &current, Grid &next, int local_rows, int cols) {
         }
 }
 
-// Imprime toda la grilla (proceso 0)
+/**
+ * @brief Gathers and prints the full grid from all processes
+ * @param local_grid Local grid (with ghost rows)
+ * @param local_rows Number of active local rows
+ * @param cols Number of columns
+ * @param rank Rank of the current process
+ * @param size Total number of processes
+ * @param comm MPI communicator
+ */
 void printFullGrid(const Grid &local_grid, int local_rows, int cols, int rank, int size, MPI_Comm comm) {
     if (rank == 0) {
         Grid full_grid(size * local_rows, std::vector<int>(cols));
@@ -64,6 +105,9 @@ void printFullGrid(const Grid &local_grid, int local_rows, int cols, int rank, i
     }
 }
 
+/**
+ * @brief Main function
+ */
 int main(int argc, char** argv) {
     int cols = 40, rows = 40, gens = 10;
     MPI_Init(&argc, &argv);
@@ -72,7 +116,7 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Leer parámetros si se pasan
+    // Read optional arguments
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-c" && i + 1 < argc)
             cols = std::atoi(argv[++i]);
@@ -97,14 +141,15 @@ int main(int argc, char** argv) {
     initGrid(current, local_rows, cols);
 
     for (int gen = 0; gen < gens; ++gen) {
-        // Comunicación de filas frontera
         int up = (rank == 0) ? MPI_PROC_NULL : rank - 1;
         int down = (rank == size - 1) ? MPI_PROC_NULL : rank + 1;
 
+        // Send top row up, receive from below
         MPI_Sendrecv(&current[1][0], cols, MPI_INT, up, 0,
                      &current[local_rows + 1][0], cols, MPI_INT, down, 0,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
+        // Send bottom row down, receive from above
         MPI_Sendrecv(&current[local_rows][0], cols, MPI_INT, down, 1,
                      &current[0][0], cols, MPI_INT, up, 1,
                      MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -114,7 +159,7 @@ int main(int argc, char** argv) {
 
         printFullGrid(current, local_rows, cols, rank, size, MPI_COMM_WORLD);
         if (rank == 0)
-            std::cout << "\nGeneración: " << gen << std::endl;
+            std::cout << "\nGeneraci\u00f3n: " << gen << std::endl;
 
         std::this_thread::sleep_for(std::chrono::seconds(2));
     }
