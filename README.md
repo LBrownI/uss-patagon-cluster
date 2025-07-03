@@ -1,8 +1,6 @@
 # 🖧 Raspberry Pi Cluster – High Performance on a Budget
 
-Un clúster distribuido utilizando Raspberry Pi 4 y MPI para explorar computación paralela, balanceo de carga y escalabilidad. Ideal para aprendizaje, simulaciones científicas y experimentos con HPC (High Performance Computing).
-
----
+Un clúster distribuido utilizando Raspberry Pi 4 y MPI para explorar computación paralela, balanceo de carga y otras funcionalidades de MPI.
 
 ## 📝 Descripción
 
