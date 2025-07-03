@@ -29,12 +29,14 @@ Este proyecto crea un **clúster funcional con Raspberry Pi 4**, donde:
 
 ### 🔧 Requisitos Previos
 
-- 4 Raspberry Pi 4 con Raspberry Pi OS instalado.
+- 4 Raspberry Pi 4 con Raspberry Pi OS x1 Raspberry Pi OS Lite x4.
 - Conectividad por SSH habilitada entre los nodos.
 - Todos los nodos conectados a una misma red.
 - El nodo maestro con acceso root por SSH al resto.
 
 ### 🧰 Configuración de Red y SSH
+
+### 🖥️Instalation of MPI
 
 ### 🔗 Enlaces Útiles
 
