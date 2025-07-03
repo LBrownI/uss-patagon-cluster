@@ -39,24 +39,13 @@ This project builds a **fully functional cluster using Raspberry Pi 4**, where:
 
 Inside the repository, navigate to the `commands/` folder and run the full setup:
 
-```bash
-cd commands
-chmod +x 0*.sh 04_all_in_one.sh
-./04_all_in_one.sh
-```
 
-This will:
-
-1. Install Git (`00_git_setup.sh`)
-2. Install C++ build tools (`01_cpp_dev_setup.sh`)
-3. Install OpenMPI (`02_mpi_install.sh`)
-4. Install CMake (`03_cmake_install.sh`)
 
 > You can also run each script individually if needed.
 
 ---
 
-### 🧰 Network and SSH Configuration
+
 
 ### 🔗 Useful Links
 
