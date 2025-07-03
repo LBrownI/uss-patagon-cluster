@@ -13,23 +13,54 @@ const int HEIGHT = 1920;
 const int SCALE = 150;
 const int TOTAL_ITER = 1000000;
 
+/**
+ * @brief Applies the first affine transformation used in the Barnsley fern.
+ * 
+ * @param p Input point.
+ * @return Transformed point.
+ */
 Point2f f1(Point2f p) { return Point2f(0, 0.16f * p.y); }
 
+/**
+ * @brief Applies the second affine transformation used in the Barnsley fern.
+ * 
+ * @param p Input point.
+ * @return Transformed point.
+ */
 Point2f f2(Point2f p) {
     return Point2f(0.2f * p.x - 0.26f * p.y,
                    0.23f * p.x + 0.22f * p.y + 1.6f);
 }
 
+/**
+ * @brief Applies the third affine transformation used in the Barnsley fern.
+ * 
+ * @param p Input point.
+ * @return Transformed point.
+ */
 Point2f f3(Point2f p) {
     return Point2f(-0.15f * p.x + 0.28f * p.y,
                    0.26f * p.x + 0.24f * p.y + 0.44f);
 }
 
+/**
+ * @brief Applies the fourth affine transformation used in the Barnsley fern.
+ * 
+ * @param p Input point.
+ * @return Transformed point.
+ */
 Point2f f4(Point2f p) {
     return Point2f(0.85f * p.x + 0.04f * p.y,
                    -0.04f * p.x + 0.85f * p.y + 1.6f);
 }
 
+/**
+ * @brief Generates the local portion of a Barnsley fern image using a stochastic IFS method.
+ * 
+ * @param image Output OpenCV matrix to write the fern pixels into.
+ * @param iterations Number of iterations to perform.
+ * @param seed Random seed for generating different point sets.
+ */
 void generateFern(Mat& image, int iterations, int seed) {
     Point2f pos(0, 0);
     const int dieWalls = 100;
@@ -55,6 +86,13 @@ void generateFern(Mat& image, int iterations, int seed) {
     }
 }
 
+/**
+ * @brief Entry point. Initializes MPI, generates partial images on each rank, and reduces them into a final image.
+ * 
+ * @param argc Argument count.
+ * @param argv Argument values.
+ * @return int Exit status.
+ */
 int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
 
@@ -86,7 +124,7 @@ int main(int argc, char** argv) {
                 MPI_MAX, 0, MPI_COMM_WORLD);
 
     if (rank == 0) {
-	    rotate(global_image, global_image, ROTATE_90_COUNTERCLOCKWISE);
+        rotate(global_image, global_image, ROTATE_90_COUNTERCLOCKWISE);
         imwrite("Fern.png", global_image);
     }
 
