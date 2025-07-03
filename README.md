@@ -22,7 +22,7 @@ This project builds a **fully functional cluster using Raspberry Pi 4**, where:
 - **Hardware:** 4× Raspberry Pi 4  
 - **Operating System:** Raspberry Pi OS Lite (headless)  
 - **Network:** Ethernet + switch  
-- **Automation:** SSH, `rsync`, `tmux`, `bash scripts`  
+- **Automation:** SSH
 
 ---
 
