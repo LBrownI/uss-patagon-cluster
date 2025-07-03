@@ -12,3 +12,4 @@ This script will copy the main.cpp to the other nodes, and compile them. To exec
 ```bash
 ./script.sh
 ```
+Greetings to [Digital Ghosts for base c++ code](https://www.youtube.com/watch?v=XxBPHkptsmc&ab_channel=DigitalGhosts)
