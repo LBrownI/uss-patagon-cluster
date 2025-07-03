@@ -62,7 +62,7 @@ This will:
 
 ### 🔗 Useful Links
 
-## 👥 Autores
+## 👥 Authors
 
 <table>
   <tr>
