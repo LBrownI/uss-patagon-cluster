@@ -277,12 +277,12 @@ int main(int argc, char** argv) {
             
             std::cout << "\n--- Reconstructed Sentence ---\n" << final_phrase << "\n";
             std::cout << "\n--- Metrics ---\n"
-                    << "Processes      : " << size << '\n'
-                    << "Words          : " << total_words << '\n'
-                    << "Final size     : " << final_phrase.size() << " bytes\n"
-                    << "Total time     : " << total_time << " s\n"
-                    << "Latency (total): " << total_time * 1000.0 << " ms\n"
-                    << "Bandwidth      : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
+                    << "Processes          : " << size << '\n'
+                    << "Words              : " << total_words << '\n'
+                    << "Final size         : " << final_phrase.size() << " bytes\n"
+                    << "Total time         : " << total_time << " s\n"
+                    << "Avg. latency/word  : " << (total_words > 0 ? (total_time / total_words) * 1000.0 : 0) << " ms\n"
+                    << "Bandwidth          : " << (total_words > 0 && total_time > 0 ? (final_phrase.size() / total_time) / (1024.0 * 1024.0) : 0) << " MB/s\n";
         }
     } else if (rank == 0) {
         // Handle the case where no words were entered
