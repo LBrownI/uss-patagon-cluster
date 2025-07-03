@@ -58,8 +58,6 @@ This will:
 
 ### 🧰 Network and SSH Configuration
 
-### 🖥️ MPI Installation
-
 ### 🔗 Useful Links
 
 ## 👥 Authors
