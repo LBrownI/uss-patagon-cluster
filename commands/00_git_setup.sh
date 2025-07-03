@@ -5,7 +5,7 @@ sudo apt update
 sudo apt install -y git
 
 echo "configuring git global name and email..."
-git config --global user.name "clusterpatagon"
-git config --global user.email "clusterpatagon@gmail.com"
+git config --global user.name "example"
+git config --global user.email "example@example.example"
 
 echo "git setup complete."
